@@ -16,15 +16,21 @@ st.set_page_config(
     layout="wide",
 )
 
-# Hide "Press Enter to submit form" helper text
+# Hide "Press Enter to submit form" helper text and remove red focus border
 st.markdown("""
 <style>
     div[data-testid="InputInstructions"] {
         display: none;
     }
-    .stNumberInput input:focus {
-        border-color: inherit !important;
+    .stNumberInput input:focus,
+    .stNumberInput input:active,
+    .stNumberInput div[data-baseweb="input"]:focus-within {
+        border-color: rgba(250, 250, 250, 0.2) !important;
         box-shadow: none !important;
+        outline: none !important;
+    }
+    .stNumberInput div[data-baseweb="input"] {
+        border-color: rgba(250, 250, 250, 0.2) !important;
     }
 </style>
 """, unsafe_allow_html=True)
