@@ -22,14 +22,32 @@ st.markdown("""
     div[data-testid="InputInstructions"] {
         display: none;
     }
-    .stNumberInput input:focus,
-    .stNumberInput input:active,
-    .stNumberInput div[data-baseweb="input"]:focus-within {
+    /* Remove red focus border from all inputs */
+    input:focus, input:active {
         border-color: rgba(250, 250, 250, 0.2) !important;
         box-shadow: none !important;
         outline: none !important;
     }
-    .stNumberInput div[data-baseweb="input"] {
+    div[data-baseweb="input"]:focus-within,
+    div[data-baseweb="input"]:focus,
+    div[data-baseweb="input"]:active {
+        border-color: rgba(250, 250, 250, 0.2) !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    /* Target Streamlit's specific wrapper */
+    .stNumberInput > div > div {
+        border-color: rgba(250, 250, 250, 0.2) !important;
+    }
+    .stNumberInput > div > div:focus-within {
+        border-color: rgba(250, 250, 250, 0.2) !important;
+        box-shadow: none !important;
+    }
+    /* Override any red/primary color borders */
+    *:focus {
+        outline: none !important;
+    }
+    [data-baseweb="base-input"] {
         border-color: rgba(250, 250, 250, 0.2) !important;
     }
 </style>
