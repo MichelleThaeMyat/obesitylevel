@@ -16,6 +16,19 @@ st.set_page_config(
     layout="wide",
 )
 
+# Hide "Press Enter to submit form" helper text
+st.markdown("""
+<style>
+    div[data-testid="InputInstructions"] {
+        display: none;
+    }
+    .stNumberInput input:focus {
+        border-color: inherit !important;
+        box-shadow: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("Obesity Level Prediction")
 st.caption("Educational demo. Not medical advice.")
 
