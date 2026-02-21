@@ -1,0 +1,125 @@
+{
+  "target": "NObeyesdad",
+  "recommended_model": "RandomForest",
+  "classes": [
+    "Insufficient_Weight",
+    "Normal_Weight",
+    "Obesity_Type_I",
+    "Obesity_Type_II",
+    "Obesity_Type_III",
+    "Overweight_Level_I",
+    "Overweight_Level_II"
+  ],
+  "numeric_features": {
+    "Age": {
+      "min": 14.0,
+      "max": 61.0,
+      "median": 22.847618
+    },
+    "Height": {
+      "min": 1.45,
+      "max": 1.98,
+      "median": 1.701584
+    },
+    "Weight": {
+      "min": 39.0,
+      "max": 173.0,
+      "median": 83.1011
+    },
+    "FCVC": {
+      "min": 1.0,
+      "max": 3.0,
+      "median": 2.396265
+    },
+    "NCP": {
+      "min": 1.0,
+      "max": 4.0,
+      "median": 3.0
+    },
+    "CH2O": {
+      "min": 1.0,
+      "max": 3.0,
+      "median": 2.0
+    },
+    "FAF": {
+      "min": 0.0,
+      "max": 3.0,
+      "median": 1.0
+    },
+    "TUE": {
+      "min": 0.0,
+      "max": 2.0,
+      "median": 0.630866
+    },
+    "BMI": {
+      "min": 12.998684889724604,
+      "max": 50.81175280566433,
+      "median": 28.89622426303332
+    }
+  },
+  "categorical_features": {
+    "Gender": {
+      "options": [
+        "Female",
+        "Male"
+      ],
+      "default": "Male"
+    },
+    "CALC": {
+      "options": [
+        "Always",
+        "Frequently",
+        "Sometimes",
+        "no"
+      ],
+      "default": "Sometimes"
+    },
+    "FAVC": {
+      "options": [
+        "no",
+        "yes"
+      ],
+      "default": "yes"
+    },
+    "SCC": {
+      "options": [
+        "no",
+        "yes"
+      ],
+      "default": "no"
+    },
+    "SMOKE": {
+      "options": [
+        "no",
+        "yes"
+      ],
+      "default": "no"
+    },
+    "family_history_with_overweight": {
+      "options": [
+        "no",
+        "yes"
+      ],
+      "default": "yes"
+    },
+    "CAEC": {
+      "options": [
+        "Always",
+        "Frequently",
+        "Sometimes",
+        "no"
+      ],
+      "default": "Sometimes"
+    },
+    "MTRANS": {
+      "options": [
+        "Automobile",
+        "Bike",
+        "Motorbike",
+        "Public_Transportation",
+        "Walking"
+      ],
+      "default": "Public_Transportation"
+    }
+  }
+}
