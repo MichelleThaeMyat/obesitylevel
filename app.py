@@ -100,23 +100,62 @@ INT_FEATURE_HINTS = {
     # "NCP",
 }
 
+# Feature units mapping
+FEATURE_UNITS = {
+    "Age": "years",
+    "Height": "meters",
+    "Weight": "kg",
+    "FCVC": "scale 1-3",
+    "NCP": "meals/day",
+    "CH2O": "liters/day",
+    "FAF": "hours/week",
+    "TUE": "hours/day",
+}
+
+# Feature descriptions for help text
+FEATURE_HELP = {
+    "Age": "Your age in years",
+    "Height": "Your height in meters (e.g., 1.75 = 175 cm)",
+    "Weight": "Your weight in kilograms",
+    "FCVC": "1 = Low, 2 = Medium, 3 = High vegetable consumption",
+    "NCP": "Number of main meals you eat per day (1-4)",
+    "CH2O": "1 = Low, 2 = Moderate, 3 = High water intake",
+    "FAF": "0 = No exercise, 1 = Low, 2 = Moderate, 3 = High activity",
+    "TUE": "0 = Low, 1 = Moderate, 2 = High screen time",
+    "Gender": "Your biological gender",
+    "family_history_with_overweight": "Does your family have a history of overweight?",
+    "FAVC": "Do you frequently eat high-calorie foods (fast food, junk food)?",
+    "CAEC": "How often do you snack between meals?",
+    "SMOKE": "Do you smoke?",
+    "SCC": "Do you monitor/track your calorie intake?",
+    "CALC": "How often do you consume alcohol?",
+    "MTRANS": "Your main mode of transportation",
+}
+
+
 def pretty_label(name: str) -> str:
-    """Convert raw feature names into readable labels."""
-    replacements = {
+    """Convert raw feature names into readable labels with units."""
+    base_labels = {
         "family_history_with_overweight": "Family history with overweight",
-        "FAVC": "High-calorie food consumption (FAVC)",
-        "FCVC": "Vegetable consumption frequency (FCVC)",
-        "NCP": "Number of main meals per day (NCP)",
-        "CAEC": "Eating between meals (CAEC)",
-        "SMOKE": "Smoker (SMOKE)",
-        "CH2O": "Daily water intake (CH2O)",
-        "SCC": "Calorie monitoring (SCC)",
-        "FAF": "Physical activity frequency (FAF)",
-        "TUE": "Time using technology devices (TUE)",
-        "CALC": "Alcohol consumption (CALC)",
-        "MTRANS": "Transportation (MTRANS)",
+        "FAVC": "High-calorie food consumption",
+        "FCVC": "Vegetable consumption frequency",
+        "NCP": "Number of main meals",
+        "CAEC": "Eating between meals",
+        "SMOKE": "Smoker",
+        "CH2O": "Daily water intake",
+        "SCC": "Calorie monitoring",
+        "FAF": "Physical activity frequency",
+        "TUE": "Time using technology",
+        "CALC": "Alcohol consumption",
+        "MTRANS": "Transportation",
     }
-    return replacements.get(name, name.replace("_", " ").strip())
+    label = base_labels.get(name, name.replace("_", " ").strip())
+    
+    # Add unit if available
+    if name in FEATURE_UNITS:
+        label = f"{label} ({FEATURE_UNITS[name]})"
+    
+    return label
 
 
 def compute_bmi(height_value: float, weight_value: float) -> float | None:
@@ -199,6 +238,7 @@ with left:
                 use_int = feat in INT_FEATURE_HINTS
 
                 with cols[i % 2]:
+                    help_text = FEATURE_HELP.get(feat, None)
                     if use_int:
                         # Integer widget + integer bounds
                         imin = int(np.floor(vmin))
@@ -212,6 +252,7 @@ with left:
                             max_value=imax,
                             value=idef,
                             step=1,
+                            help=help_text,
                         )
                     else:
                         # Float widget with a reasonable step
@@ -225,6 +266,7 @@ with left:
                             value=vdef,
                             step=step,
                             format="%.3f" if step < 1 else "%.2f",
+                            help=help_text,
                         )
                 i += 1
 
@@ -239,10 +281,12 @@ with left:
                 default_index = options.index(default) if default in options else 0
 
                 with cols[j % 2]:
+                    help_text = FEATURE_HELP.get(feat, None)
                     user_inputs[feat] = st.selectbox(
                         label=pretty_label(feat),
                         options=options,
                         index=default_index,
+                        help=help_text,
                     )
                 j += 1
 
@@ -256,13 +300,30 @@ with left:
 with right:
     st.subheader("Prediction result")
 
-    # Show BMI computed (helpful demo)
+    # Show BMI computed from Height and Weight (auto-calculated)
     bmi_val = None
     if "Height" in user_inputs and "Weight" in user_inputs:
         bmi_val = compute_bmi(user_inputs["Height"], user_inputs["Weight"])
 
     if bmi_val is not None:
-        st.metric("BMI (computed)", f"{bmi_val:.2f}")
+        st.markdown("##### Auto-calculated BMI")
+        col_bmi1, col_bmi2 = st.columns(2)
+        with col_bmi1:
+            st.metric("BMI (kg/m²)", f"{bmi_val:.2f}")
+        with col_bmi2:
+            # BMI category helper
+            if bmi_val < 18.5:
+                bmi_category = "Underweight"
+            elif bmi_val < 25:
+                bmi_category = "Normal"
+            elif bmi_val < 30:
+                bmi_category = "Overweight"
+            else:
+                bmi_category = "Obese"
+            st.metric("BMI Category", bmi_category)
+        
+        st.caption(f"Formula: Weight / Height² = {user_inputs.get('Weight', 0):.1f} / {user_inputs.get('Height', 1):.2f}² = {bmi_val:.2f}")
+        st.divider()
 
     if submitted:
         # Cast ints explicitly where requested (Age as int)
