@@ -1,9 +1,21 @@
+# streamlit_app_obesity_ui_preferred_v2.py
+# Clean Streamlit UI (no emojis) for Obesity Level Prediction
+# - User inputs: Height (cm), Weight (lb)
+# - Internal: converts to meters/kg + computes BMI (kg/m^2)
+# - IMPORTANT UI change:
+#     * BMI is shown as a neutral metric ONLY (no "Overweight/Normal" label)
+#     * Adds a note to avoid confusion with the ML prediction result
+# - Removes "Press Enter to apply" helper text and red focus border
+# - Top-K + (optional) show all probabilities
+# - Matplotlib bar chart to avoid truncated class labels
+
 import json
 from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import streamlit as st
 
 
@@ -16,42 +28,32 @@ st.set_page_config(
     layout="wide",
 )
 
-# Hide "Press Enter to submit form" helper text and remove red focus border
-st.markdown("""
+# ----------------------------
+# CSS: hide helper text + remove focus red border
+# ----------------------------
+st.markdown(
+    """
 <style>
-    div[data-testid="InputInstructions"] {
-        display: none;
-    }
-    /* Remove red focus border from all inputs */
-    input:focus, input:active {
-        border-color: rgba(250, 250, 250, 0.2) !important;
-        box-shadow: none !important;
-        outline: none !important;
-    }
-    div[data-baseweb="input"]:focus-within,
-    div[data-baseweb="input"]:focus,
-    div[data-baseweb="input"]:active {
-        border-color: rgba(250, 250, 250, 0.2) !important;
-        box-shadow: none !important;
-        outline: none !important;
-    }
-    /* Target Streamlit's specific wrapper */
-    .stNumberInput > div > div {
-        border-color: rgba(250, 250, 250, 0.2) !important;
-    }
-    .stNumberInput > div > div:focus-within {
-        border-color: rgba(250, 250, 250, 0.2) !important;
-        box-shadow: none !important;
-    }
-    /* Override any red/primary color borders */
-    *:focus {
-        outline: none !important;
-    }
-    [data-baseweb="base-input"] {
-        border-color: rgba(250, 250, 250, 0.2) !important;
-    }
+/* Hide Streamlit helper text like "Press Enter to apply" */
+div[data-testid="InputInstructions"] { display: none !important; }
+
+/* Remove focus outlines / red borders */
+input:focus, input:active, input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+div[data-baseweb="input"]:focus-within,
+div[data-baseweb="input"]:focus,
+div[data-baseweb="input"]:active {
+    border-color: rgba(255,255,255,0.18) !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+*:focus { outline: none !important; }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 st.title("Obesity Level Prediction")
 st.caption("Educational demo. Not medical advice.")
@@ -93,287 +95,228 @@ schema = load_schema(str(SCHEMA_FILE))
 # ----------------------------
 # Helpers
 # ----------------------------
-# Force specific features to be integer in the UI + before prediction
-INT_FEATURE_HINTS = {
-    "Age",  # Age should be integer
-    # Add more here only if your dataset truly stores them as integers
-    # "NCP",
-}
-
-# Feature units mapping
-FEATURE_UNITS = {
-    "Age": "years",
-    "Height": "cm",
-    "Weight": "lb",
-    "FCVC": "scale 1-3",
-    "NCP": "meals/day",
-    "CH2O": "liters/day",
-    "FAF": "hours/week",
-    "TUE": "hours/day",
-}
-
-# Feature descriptions for help text
-FEATURE_HELP = {
-    "Age": "Your age in years",
-    "Height": "Your height in centimeters (e.g., 175 cm)",
-    "Weight": "Your weight in pounds (lb)",
-    "FCVC": "1 = Low, 2 = Medium, 3 = High vegetable consumption",
-    "NCP": "Number of main meals you eat per day (1-4)",
-    "CH2O": "1 = Low, 2 = Moderate, 3 = High water intake",
-    "FAF": "0 = No exercise, 1 = Low, 2 = Moderate, 3 = High activity",
-    "TUE": "0 = Low, 1 = Moderate, 2 = High screen time",
-    "Gender": "Your biological gender",
-    "family_history_with_overweight": "Does your family have a history of overweight?",
-    "FAVC": "Do you frequently eat high-calorie foods (fast food, junk food)?",
-    "CAEC": "How often do you snack between meals?",
-    "SMOKE": "Do you smoke?",
-    "SCC": "Do you monitor/track your calorie intake?",
-    "CALC": "How often do you consume alcohol?",
-    "MTRANS": "Your main mode of transportation",
-}
+INT_FEATURE_HINTS = {"Age"}  # features forced to int
 
 
-def pretty_label(name: str) -> str:
-    """Convert raw feature names into readable labels with units."""
-    base_labels = {
-        "family_history_with_overweight": "Family history with overweight",
-        "FAVC": "High-calorie food consumption",
-        "FCVC": "Vegetable consumption frequency",
-        "NCP": "Number of main meals",
-        "CAEC": "Eating between meals",
-        "SMOKE": "Smoker",
-        "CH2O": "Daily water intake",
-        "SCC": "Calorie monitoring",
-        "FAF": "Physical activity frequency",
-        "TUE": "Time using technology",
-        "CALC": "Alcohol consumption",
-        "MTRANS": "Transportation",
-    }
-    label = base_labels.get(name, name.replace("_", " ").strip())
-    
-    # Add unit if available
-    if name in FEATURE_UNITS:
-        label = f"{label} ({FEATURE_UNITS[name]})"
-    
-    return label
+def lb_to_kg(lb: float) -> float:
+    """Convert pounds to kilograms."""
+    return float(lb) * 0.45359237
 
 
-def compute_bmi(height_cm: float, weight_lb: float) -> float | None:
-    """Compute BMI from height in cm and weight in lb."""
+def cm_to_m(cm: float) -> float:
+    """Convert centimeters to meters."""
+    return float(cm) / 100.0
+
+
+def compute_bmi_cm_lb(height_cm: float, weight_lb: float) -> float | None:
+    """Compute BMI in kg/m^2 from height(cm) and weight(lb)."""
     try:
-        h_cm = float(height_cm)
-        w_lb = float(weight_lb)
-        if h_cm <= 0 or w_lb <= 0:
+        h_m = cm_to_m(height_cm)
+        w_kg = lb_to_kg(weight_lb)
+        if h_m <= 0 or w_kg <= 0:
             return None
-        # Convert to meters and kg for BMI formula
-        h_m = h_cm / 100.0
-        w_kg = w_lb * 0.453592
         return w_kg / (h_m ** 2)
     except Exception:
         return None
 
 
-def lb_to_kg(lb: float) -> float:
-    """Convert pounds to kilograms."""
-    return lb * 0.453592
-
-
-def cm_to_m(cm: float) -> float:
-    """Convert centimeters to meters."""
-    return cm / 100.0
-
-
-def top_k(classes, probs, k=5):
-    """Return top-k (label, prob) pairs."""
-    probs = np.asarray(probs)
+def top_k_pairs(classes, probs, k: int):
+    """Return top-k pairs sorted by probability."""
+    probs = np.asarray(probs, dtype=float)
     idx = np.argsort(probs)[::-1][:k]
     return [(str(classes[i]), float(probs[i])) for i in idx]
 
 
+def model_expects(feature_name: str) -> bool:
+    """
+    Check if the model pipeline expects a given feature.
+    If the model exposes feature_names_in_, we can detect features reliably.
+    """
+    try:
+        feats = getattr(model, "feature_names_in_", None)
+        if feats is None:
+            return False
+        return feature_name in list(feats)
+    except Exception:
+        return False
+
+
+# Your refined notebook trained with BMI, so this should be True in most cases.
+EXPECTS_BMI = model_expects("BMI")
+
+
+def pretty_label(name: str) -> str:
+    """Readable labels for UI."""
+    mapping = {
+        "family_history_with_overweight": "Family history with overweight",
+        "FAVC": "High-calorie food consumption",
+        "FCVC": "Vegetable consumption frequency (scale 1-3)",
+        "NCP": "Number of main meals (meals/day)",
+        "CAEC": "Eating between meals",
+        "SMOKE": "Smoker",
+        "CH2O": "Daily water intake (liters/day)",
+        "SCC": "Calorie monitoring",
+        "FAF": "Physical activity frequency (hours/week)",
+        "TUE": "Time using technology (hours/day)",
+        "CALC": "Alcohol consumption",
+        "MTRANS": "Transportation",
+        "Age": "Age (years)",
+        "Height": "Height (cm)",
+        "Weight": "Weight (lb)",
+    }
+    return mapping.get(name, name.replace("_", " ").strip())
+
+
+def prettify_class_label(label: str) -> str:
+    """Make class labels more readable for charts/tables."""
+    # Example: Overweight_Level_II -> Overweight Level II
+    return label.replace("_", " ").replace("  ", " ").strip()
+
+
 # ----------------------------
-# Layout
+# Sidebar controls
 # ----------------------------
-left, right = st.columns([1.2, 1.0])
+left, right = st.columns([1.25, 1.0])
 
 with st.sidebar:
     st.header("Model")
     st.write(f"Recommended: {schema.get('recommended_model', 'Unknown')}")
 
-    # Use schema classes if present; otherwise fall back safely
-    classes_from_schema = schema.get("classes", [])
-    n_classes = len(classes_from_schema) if isinstance(classes_from_schema, list) else 0
-    if n_classes <= 0:
-        n_classes = 7  # safe default for this obesity dataset
-
+    n_classes = len(getattr(model, "classes_", schema.get("classes", [])))
     st.write(f"Number of classes: {n_classes}")
 
     st.divider()
-
-    # Dynamic Top-K: never allow choosing more than available classes
     top_k_n = st.slider(
         "Top-K results",
         min_value=1,
-        max_value=n_classes,
-        value=min(5, n_classes),
+        max_value=max(1, n_classes),
+        value=min(5, n_classes) if n_classes else 5,
         step=1,
     )
-
     show_all = st.checkbox("Show all class probabilities", value=False)
-
-    # Optional: if show_all is on, Top-K becomes "all classes" for consistent display
-    if show_all:
+    if show_all and n_classes:
         top_k_n = n_classes
 
 
 # ----------------------------
 # Inputs
 # ----------------------------
+numeric_features = schema.get("numeric_features", {})
+categorical_features = schema.get("categorical_features", {})
+
+user_inputs = {}
+
 with left:
     st.subheader("Input features")
-
-    numeric_features = schema.get("numeric_features", {})
-    categorical_features = schema.get("categorical_features", {})
-
-    user_inputs = {}
-
-    # Collect Height and Weight first (outside form for real-time BMI calculation)
     st.markdown("**Body Measurements**")
+
     col_hw = st.columns(2)
-    
-    # Get Height info from schema (convert from meters to cm for display)
-    height_info = numeric_features.get("Height", {"min": 1.0, "max": 2.5, "median": 1.7})
-    weight_info = numeric_features.get("Weight", {"min": 30, "max": 200, "median": 70})
-    
-    # Convert schema values (meters) to cm for UI
-    height_min_cm = float(height_info["min"]) * 100 if float(height_info["min"]) < 10 else float(height_info["min"])
-    height_max_cm = float(height_info["max"]) * 100 if float(height_info["max"]) < 10 else float(height_info["max"])
-    height_default_cm = float(height_info["median"]) * 100 if float(height_info["median"]) < 10 else float(height_info["median"])
-    
-    # Convert schema values (kg) to lb for UI
-    weight_min_lb = float(weight_info["min"]) * 2.20462
-    weight_max_lb = float(weight_info["max"]) * 2.20462
-    weight_default_lb = float(weight_info["median"]) * 2.20462
-    
+
+    # schema stores Height in meters and Weight in kg → convert to cm/lb for UI
+    height_info = numeric_features.get("Height", {"min": 1.0, "max": 2.5, "median": 1.70})
+    weight_info = numeric_features.get("Weight", {"min": 30.0, "max": 200.0, "median": 70.0})
+
+    height_min_cm = float(height_info["min"]) * 100.0
+    height_max_cm = float(height_info["max"]) * 100.0
+    height_def_cm = float(height_info["median"]) * 100.0
+
+    weight_min_lb = float(weight_info["min"]) * 2.20462262
+    weight_max_lb = float(weight_info["max"]) * 2.20462262
+    weight_def_lb = float(weight_info["median"]) * 2.20462262
+
     with col_hw[0]:
         height_cm = st.number_input(
-            label="Height (cm)",
-            min_value=height_min_cm,
-            max_value=height_max_cm,
-            value=height_default_cm,
+            pretty_label("Height"),
+            min_value=float(np.floor(height_min_cm)),
+            max_value=float(np.ceil(height_max_cm)),
+            value=float(round(height_def_cm)),
             step=1.0,
             format="%.0f",
-            help="Your height in centimeters (e.g., 175 cm)",
-            key="height_input",
         )
-        # Store in meters for model
+        # Model expects meters
         user_inputs["Height"] = cm_to_m(height_cm)
-    
+
     with col_hw[1]:
         weight_lb = st.number_input(
-            label="Weight (lb)",
-            min_value=weight_min_lb,
-            max_value=weight_max_lb,
-            value=weight_default_lb,
+            pretty_label("Weight"),
+            min_value=float(np.floor(weight_min_lb)),
+            max_value=float(np.ceil(weight_max_lb)),
+            value=float(round(weight_def_lb)),
             step=1.0,
             format="%.0f",
-            help="Your weight in pounds (lb)",
-            key="weight_input",
         )
-        # Store in kg for model
+        # Model expects kg
         user_inputs["Weight"] = lb_to_kg(weight_lb)
-    
-    # Auto-calculate BMI (using cm and lb inputs)
-    bmi_calculated = compute_bmi(height_cm, weight_lb)
-    if bmi_calculated is not None:
-        user_inputs["BMI"] = bmi_calculated
-        
-        # Determine BMI category
-        if bmi_calculated < 18.5:
-            bmi_category = "Underweight"
-            bmi_color = "blue"
-        elif bmi_calculated < 25:
-            bmi_category = "Normal"
-            bmi_color = "green"
-        elif bmi_calculated < 30:
-            bmi_category = "Overweight"
-            bmi_color = "orange"
-        else:
-            bmi_category = "Obese"
-            bmi_color = "red"
-        
-        st.markdown(f"**BMI (lb/cm²):** `{bmi_calculated:.2f}` — :{bmi_color}[{bmi_category}]")
+
+    # BMI display (neutral) + include as model input if expected
+    bmi_val = compute_bmi_cm_lb(height_cm, weight_lb)
+    if bmi_val is not None:
+        st.markdown(f"**BMI (kg/m²):** `{bmi_val:.2f}`")
+        st.caption("BMI is one indicator. The prediction result is based on all inputs.")
         st.caption(f"Auto-calculated from: {weight_lb:.0f} lb, {height_cm:.0f} cm")
 
-    with st.form("input_form", clear_on_submit=False):
-        # Numeric section (excluding Height, Weight, BMI which are handled above)
-        other_numeric = {k: v for k, v in numeric_features.items() if k not in ["Height", "Weight", "BMI"]}
-        
-        if other_numeric:
-            st.markdown("**Other Numeric Features**")
-            cols = st.columns(2)
-            i = 0
-            for feat, info in other_numeric.items():
-                vmin = float(info["min"])
-                vmax = float(info["max"])
-                vdef = float(info["median"])
+        if EXPECTS_BMI:
+            user_inputs["BMI"] = float(bmi_val)
 
-                use_int = feat in INT_FEATURE_HINTS
+    st.divider()
+    st.markdown("**Other Numeric Features**")
 
-                with cols[i % 2]:
-                    help_text = FEATURE_HELP.get(feat, None)
-                    if use_int:
-                        # Integer widget + integer bounds
-                        imin = int(np.floor(vmin))
-                        imax = int(np.ceil(vmax))
-                        idef = int(round(vdef))
-                        idef = max(imin, min(imax, idef))
+    # Other numeric features (exclude Height/Weight/BMI)
+    other_numeric = {k: v for k, v in numeric_features.items() if k not in {"Height", "Weight", "BMI"}}
 
-                        user_inputs[feat] = st.number_input(
-                            label=pretty_label(feat),
-                            min_value=imin,
-                            max_value=imax,
-                            value=idef,
-                            step=1,
-                            help=help_text,
-                        )
-                    else:
-                        # Float widget with a reasonable step
-                        span = vmax - vmin
-                        step = 0.1 if span <= 5 else (0.5 if span <= 50 else 1.0)
+    cols = st.columns(2)
+    i = 0
+    for feat, info in other_numeric.items():
+        vmin = float(info["min"])
+        vmax = float(info["max"])
+        vdef = float(info["median"])
 
-                        user_inputs[feat] = st.number_input(
-                            label=pretty_label(feat),
-                            min_value=vmin,
-                            max_value=vmax,
-                            value=vdef,
-                            step=step,
-                            format="%.3f" if step < 1 else "%.2f",
-                            help=help_text,
-                        )
-                i += 1
+        with cols[i % 2]:
+            if feat in INT_FEATURE_HINTS:
+                imin = int(np.floor(vmin))
+                imax = int(np.ceil(vmax))
+                idef = int(round(vdef))
+                idef = max(imin, min(imax, idef))
 
-        # Categorical section
-        if categorical_features:
-            st.markdown("Categorical")
-            cols = st.columns(2)
-            j = 0
-            for feat, info in categorical_features.items():
-                options = info["options"]
-                default = info["default"]
-                default_index = options.index(default) if default in options else 0
+                user_inputs[feat] = st.number_input(
+                    pretty_label(feat),
+                    min_value=imin,
+                    max_value=imax,
+                    value=idef,
+                    step=1,
+                )
+            else:
+                span = vmax - vmin
+                step = 0.1 if span <= 5 else (0.5 if span <= 50 else 1.0)
 
-                with cols[j % 2]:
-                    help_text = FEATURE_HELP.get(feat, None)
-                    user_inputs[feat] = st.selectbox(
-                        label=pretty_label(feat),
-                        options=options,
-                        index=default_index,
-                        help=help_text,
-                    )
-                j += 1
+                user_inputs[feat] = st.number_input(
+                    pretty_label(feat),
+                    min_value=vmin,
+                    max_value=vmax,
+                    value=vdef,
+                    step=step,
+                    format="%.3f" if step < 1 else "%.2f",
+                )
+        i += 1
 
-        st.divider()
-        submitted = st.form_submit_button("Predict")
+    st.markdown("**Categorical**")
+    cols = st.columns(2)
+    j = 0
+    for feat, info in categorical_features.items():
+        options = info["options"]
+        default = info["default"]
+        default_index = options.index(default) if default in options else 0
+
+        with cols[j % 2]:
+            user_inputs[feat] = st.selectbox(
+                pretty_label(feat),
+                options=options,
+                index=default_index,
+            )
+        j += 1
+
+    st.divider()
+    submitted = st.button("Predict")
 
 
 # ----------------------------
@@ -383,14 +326,17 @@ with right:
     st.subheader("Prediction result")
 
     if submitted:
-        # Cast ints explicitly where requested (Age as int)
-        for feat in list(user_inputs.keys()):
-            if feat in INT_FEATURE_HINTS:
-                user_inputs[feat] = int(user_inputs[feat])
+        # Ensure ints where required
+        for f in list(user_inputs.keys()):
+            if f in INT_FEATURE_HINTS:
+                user_inputs[f] = int(user_inputs[f])
 
         x_in = pd.DataFrame([user_inputs])
 
-        # Predict probabilities (RandomForest supports predict_proba)
+        if not hasattr(model, "predict_proba"):
+            st.error("This model does not support predict_proba().")
+            st.stop()
+
         probs = model.predict_proba(x_in)[0]
         classes = model.classes_
 
@@ -398,24 +344,38 @@ with right:
         pred_label = str(classes[pred_idx])
         pred_prob = float(probs[pred_idx])
 
-        st.success(f"Predicted obesity level: {pred_label}")
+        st.success(f"Predicted obesity level: {prettify_class_label(pred_label)}")
         st.caption(f"Top-1 probability: {pred_prob:.3f}")
 
         # Top-K table
         k = int(min(top_k_n, len(classes)))
-        topk = top_k(classes, probs, k=k)
-        df_top = pd.DataFrame(topk, columns=["Class", "Probability"])
+        topk = top_k_pairs(classes, probs, k)
 
-        st.markdown("Top results")
+        # Prettify labels for display
+        df_top = pd.DataFrame(
+            [(prettify_class_label(c), p) for c, p in topk],
+            columns=["Class", "Probability"],
+        )
+
+        st.markdown("**Top results**")
         st.dataframe(df_top, use_container_width=True, hide_index=True)
 
-        st.markdown("Probability chart (Top-K)")
-        st.bar_chart(df_top.set_index("Class"))
+        # Chart with readable labels
+        st.markdown("**Probability chart (Top-K)**")
+        fig = plt.figure(figsize=(7, 4))
+        ax = fig.add_subplot(111)
+        ax.bar(df_top["Class"], df_top["Probability"])
+        ax.set_xlabel("Class")
+        ax.set_ylabel("Probability")
+        ax.set_title("Top-K Class Probabilities")
+        plt.xticks(rotation=45, ha="right")
+        plt.tight_layout()
+        st.pyplot(fig)
 
         if show_all:
-            st.markdown("All class probabilities")
+            st.markdown("**All class probabilities**")
             df_all = (
-                pd.DataFrame({"Class": classes, "Probability": probs})
+                pd.DataFrame({"Class": [prettify_class_label(c) for c in classes], "Probability": probs})
                 .sort_values("Probability", ascending=False)
                 .reset_index(drop=True)
             )
