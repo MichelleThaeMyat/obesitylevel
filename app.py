@@ -301,10 +301,8 @@ with left:
             bmi_category = "Obese"
             bmi_color = "red"
         
-        weight_kg = lb_to_kg(weight_lb)
-        height_m = cm_to_m(height_cm)
         st.markdown(f"**BMI (kg/m²):** `{bmi_calculated:.2f}` — :{bmi_color}[{bmi_category}]")
-        st.caption(f"Auto-calculated: {weight_kg:.1f} kg / {height_m:.2f}² m = {bmi_calculated:.2f}")
+        st.caption(f"Auto-calculated from: {weight_lb:.0f} lb, {height_cm:.0f} cm")
 
     with st.form("input_form", clear_on_submit=False):
         # Numeric section (excluding Height, Weight, BMI which are handled above)
