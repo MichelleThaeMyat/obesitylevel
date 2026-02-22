@@ -103,8 +103,8 @@ INT_FEATURE_HINTS = {
 # Feature units mapping
 FEATURE_UNITS = {
     "Age": "years",
-    "Height": "meters",
-    "Weight": "kg",
+    "Height": "cm",
+    "Weight": "lb",
     "FCVC": "scale 1-3",
     "NCP": "meals/day",
     "CH2O": "liters/day",
@@ -115,8 +115,8 @@ FEATURE_UNITS = {
 # Feature descriptions for help text
 FEATURE_HELP = {
     "Age": "Your age in years",
-    "Height": "Your height in meters (e.g., 1.75 = 175 cm)",
-    "Weight": "Your weight in kilograms",
+    "Height": "Your height in centimeters (e.g., 175 cm)",
+    "Weight": "Your weight in pounds (lb)",
     "FCVC": "1 = Low, 2 = Medium, 3 = High vegetable consumption",
     "NCP": "Number of main meals you eat per day (1-4)",
     "CH2O": "1 = Low, 2 = Moderate, 3 = High water intake",
@@ -158,17 +158,29 @@ def pretty_label(name: str) -> str:
     return label
 
 
-def compute_bmi(height_value: float, weight_value: float) -> float | None:
-    """Compute BMI from height and weight (meters or centimeters)."""
+def compute_bmi(height_cm: float, weight_lb: float) -> float | None:
+    """Compute BMI from height in cm and weight in lb."""
     try:
-        h = float(height_value)
-        w = float(weight_value)
-        if h <= 0 or w <= 0:
+        h_cm = float(height_cm)
+        w_lb = float(weight_lb)
+        if h_cm <= 0 or w_lb <= 0:
             return None
-        h_m = (h / 100.0) if h > 3.0 else h
-        return w / (h_m ** 2)
+        # Convert to meters and kg for BMI formula
+        h_m = h_cm / 100.0
+        w_kg = w_lb * 0.453592
+        return w_kg / (h_m ** 2)
     except Exception:
         return None
+
+
+def lb_to_kg(lb: float) -> float:
+    """Convert pounds to kilograms."""
+    return lb * 0.453592
+
+
+def cm_to_m(cm: float) -> float:
+    """Convert centimeters to meters."""
+    return cm / 100.0
 
 
 def top_k(classes, probs, k=5):
@@ -228,36 +240,50 @@ with left:
     st.markdown("**Body Measurements**")
     col_hw = st.columns(2)
     
-    # Get Height info from schema
+    # Get Height info from schema (convert from meters to cm for display)
     height_info = numeric_features.get("Height", {"min": 1.0, "max": 2.5, "median": 1.7})
     weight_info = numeric_features.get("Weight", {"min": 30, "max": 200, "median": 70})
     
+    # Convert schema values (meters) to cm for UI
+    height_min_cm = float(height_info["min"]) * 100 if float(height_info["min"]) < 10 else float(height_info["min"])
+    height_max_cm = float(height_info["max"]) * 100 if float(height_info["max"]) < 10 else float(height_info["max"])
+    height_default_cm = float(height_info["median"]) * 100 if float(height_info["median"]) < 10 else float(height_info["median"])
+    
+    # Convert schema values (kg) to lb for UI
+    weight_min_lb = float(weight_info["min"]) * 2.20462
+    weight_max_lb = float(weight_info["max"]) * 2.20462
+    weight_default_lb = float(weight_info["median"]) * 2.20462
+    
     with col_hw[0]:
-        user_inputs["Height"] = st.number_input(
-            label="Height (meters)",
-            min_value=float(height_info["min"]),
-            max_value=float(height_info["max"]),
-            value=float(height_info["median"]),
-            step=0.01,
-            format="%.2f",
-            help="Your height in meters (e.g., 1.75 = 175 cm)",
+        height_cm = st.number_input(
+            label="Height (cm)",
+            min_value=height_min_cm,
+            max_value=height_max_cm,
+            value=height_default_cm,
+            step=1.0,
+            format="%.0f",
+            help="Your height in centimeters (e.g., 175 cm)",
             key="height_input",
         )
+        # Store in meters for model
+        user_inputs["Height"] = cm_to_m(height_cm)
     
     with col_hw[1]:
-        user_inputs["Weight"] = st.number_input(
-            label="Weight (kg)",
-            min_value=float(weight_info["min"]),
-            max_value=float(weight_info["max"]),
-            value=float(weight_info["median"]),
-            step=0.5,
-            format="%.1f",
-            help="Your weight in kilograms",
+        weight_lb = st.number_input(
+            label="Weight (lb)",
+            min_value=weight_min_lb,
+            max_value=weight_max_lb,
+            value=weight_default_lb,
+            step=1.0,
+            format="%.0f",
+            help="Your weight in pounds (lb)",
             key="weight_input",
         )
+        # Store in kg for model
+        user_inputs["Weight"] = lb_to_kg(weight_lb)
     
-    # Auto-calculate BMI
-    bmi_calculated = compute_bmi(user_inputs["Height"], user_inputs["Weight"])
+    # Auto-calculate BMI (using cm and lb inputs)
+    bmi_calculated = compute_bmi(height_cm, weight_lb)
     if bmi_calculated is not None:
         user_inputs["BMI"] = bmi_calculated
         
@@ -275,8 +301,10 @@ with left:
             bmi_category = "Obese"
             bmi_color = "red"
         
+        weight_kg = lb_to_kg(weight_lb)
+        height_m = cm_to_m(height_cm)
         st.markdown(f"**BMI (kg/m²):** `{bmi_calculated:.2f}` — :{bmi_color}[{bmi_category}]")
-        st.caption(f"Auto-calculated: {user_inputs['Weight']:.1f} / {user_inputs['Height']:.2f}² = {bmi_calculated:.2f}")
+        st.caption(f"Auto-calculated: {weight_kg:.1f} kg / {height_m:.2f}² m = {bmi_calculated:.2f}")
 
     with st.form("input_form", clear_on_submit=False):
         # Numeric section (excluding Height, Weight, BMI which are handled above)
