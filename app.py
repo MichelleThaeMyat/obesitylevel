@@ -301,7 +301,7 @@ with left:
             bmi_category = "Obese"
             bmi_color = "red"
         
-        st.markdown(f"**BMI (kg/m²):** `{bmi_calculated:.2f}` — :{bmi_color}[{bmi_category}]")
+        st.markdown(f"**BMI (lb/cm²):** `{bmi_calculated:.2f}` — :{bmi_color}[{bmi_category}]")
         st.caption(f"Auto-calculated from: {weight_lb:.0f} lb, {height_cm:.0f} cm")
 
     with st.form("input_form", clear_on_submit=False):
