@@ -224,13 +224,69 @@ with left:
 
     user_inputs = {}
 
+    # Collect Height and Weight first (outside form for real-time BMI calculation)
+    st.markdown("**Body Measurements**")
+    col_hw = st.columns(2)
+    
+    # Get Height info from schema
+    height_info = numeric_features.get("Height", {"min": 1.0, "max": 2.5, "median": 1.7})
+    weight_info = numeric_features.get("Weight", {"min": 30, "max": 200, "median": 70})
+    
+    with col_hw[0]:
+        user_inputs["Height"] = st.number_input(
+            label="Height (meters)",
+            min_value=float(height_info["min"]),
+            max_value=float(height_info["max"]),
+            value=float(height_info["median"]),
+            step=0.01,
+            format="%.2f",
+            help="Your height in meters (e.g., 1.75 = 175 cm)",
+            key="height_input",
+        )
+    
+    with col_hw[1]:
+        user_inputs["Weight"] = st.number_input(
+            label="Weight (kg)",
+            min_value=float(weight_info["min"]),
+            max_value=float(weight_info["max"]),
+            value=float(weight_info["median"]),
+            step=0.5,
+            format="%.1f",
+            help="Your weight in kilograms",
+            key="weight_input",
+        )
+    
+    # Auto-calculate BMI
+    bmi_calculated = compute_bmi(user_inputs["Height"], user_inputs["Weight"])
+    if bmi_calculated is not None:
+        user_inputs["BMI"] = bmi_calculated
+        
+        # Determine BMI category
+        if bmi_calculated < 18.5:
+            bmi_category = "Underweight"
+            bmi_color = "blue"
+        elif bmi_calculated < 25:
+            bmi_category = "Normal"
+            bmi_color = "green"
+        elif bmi_calculated < 30:
+            bmi_category = "Overweight"
+            bmi_color = "orange"
+        else:
+            bmi_category = "Obese"
+            bmi_color = "red"
+        
+        st.markdown(f"**BMI (kg/m²):** `{bmi_calculated:.2f}` — :{bmi_color}[{bmi_category}]")
+        st.caption(f"Auto-calculated: {user_inputs['Weight']:.1f} / {user_inputs['Height']:.2f}² = {bmi_calculated:.2f}")
+
     with st.form("input_form", clear_on_submit=False):
-        # Numeric section
-        if numeric_features:
-            st.markdown("Numeric")
+        # Numeric section (excluding Height, Weight, BMI which are handled above)
+        other_numeric = {k: v for k, v in numeric_features.items() if k not in ["Height", "Weight", "BMI"]}
+        
+        if other_numeric:
+            st.markdown("**Other Numeric Features**")
             cols = st.columns(2)
             i = 0
-            for feat, info in numeric_features.items():
+            for feat, info in other_numeric.items():
                 vmin = float(info["min"])
                 vmax = float(info["max"])
                 vdef = float(info["median"])
@@ -299,31 +355,6 @@ with left:
 # ----------------------------
 with right:
     st.subheader("Prediction result")
-
-    # Show BMI computed from Height and Weight (auto-calculated)
-    bmi_val = None
-    if "Height" in user_inputs and "Weight" in user_inputs:
-        bmi_val = compute_bmi(user_inputs["Height"], user_inputs["Weight"])
-
-    if bmi_val is not None:
-        st.markdown("##### Auto-calculated BMI")
-        col_bmi1, col_bmi2 = st.columns(2)
-        with col_bmi1:
-            st.metric("BMI (kg/m²)", f"{bmi_val:.2f}")
-        with col_bmi2:
-            # BMI category helper
-            if bmi_val < 18.5:
-                bmi_category = "Underweight"
-            elif bmi_val < 25:
-                bmi_category = "Normal"
-            elif bmi_val < 30:
-                bmi_category = "Overweight"
-            else:
-                bmi_category = "Obese"
-            st.metric("BMI Category", bmi_category)
-        
-        st.caption(f"Formula: Weight / Height² = {user_inputs.get('Weight', 0):.1f} / {user_inputs.get('Height', 1):.2f}² = {bmi_val:.2f}")
-        st.divider()
 
     if submitted:
         # Cast ints explicitly where requested (Age as int)
