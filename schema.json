@@ -13,7 +13,7 @@
   "numeric_features": {
     "Age": {
       "min": 14.0,
-      "max": 61.0,
+      "max": 150.0,
       "median": 22.847618
     },
     "Height": {
