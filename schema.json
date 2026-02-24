@@ -38,7 +38,7 @@
     },
     "CH2O": {
       "min": 1.0,
-      "max": 3.0,
+      "max": 7.0,
       "median": 2.0
     },
     "FAF": {
@@ -48,7 +48,7 @@
     },
     "TUE": {
       "min": 0.0,
-      "max": 2.0,
+      "max": 24.0,
       "median": 0.630866
     },
     "BMI": {
@@ -59,56 +59,31 @@
   },
   "categorical_features": {
     "Gender": {
-      "options": [
-        "Female",
-        "Male"
-      ],
+      "options": ["Female", "Male"],
       "default": "Male"
     },
     "CALC": {
-      "options": [
-        "Always",
-        "Frequently",
-        "Sometimes",
-        "no"
-      ],
+      "options": ["Always", "Frequently", "Sometimes", "no"],
       "default": "Sometimes"
     },
     "FAVC": {
-      "options": [
-        "no",
-        "yes"
-      ],
+      "options": ["no", "yes"],
       "default": "yes"
     },
     "SCC": {
-      "options": [
-        "no",
-        "yes"
-      ],
+      "options": ["no", "yes"],
       "default": "no"
     },
     "SMOKE": {
-      "options": [
-        "no",
-        "yes"
-      ],
+      "options": ["no", "yes"],
       "default": "no"
     },
     "family_history_with_overweight": {
-      "options": [
-        "no",
-        "yes"
-      ],
+      "options": ["no", "yes"],
       "default": "yes"
     },
     "CAEC": {
-      "options": [
-        "Always",
-        "Frequently",
-        "Sometimes",
-        "no"
-      ],
+      "options": ["Always", "Frequently", "Sometimes", "no"],
       "default": "Sometimes"
     },
     "MTRANS": {
